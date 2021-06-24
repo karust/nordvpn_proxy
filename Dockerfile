@@ -28,10 +28,10 @@ RUN apt-get update -y && \
     chmod +x /usr/bin/n_groups
 
 COPY set_proxy.sh /usr/bin
-CMD /usr/bin/set_proxy.sh
-
-#CMD /usr/bin/start_vpn.sh
 COPY start_vpn.sh /usr/bin
-
 RUN ["chmod", "+x", "/usr/bin/start_vpn.sh"]
 RUN ["chmod", "+x", "/usr/bin/set_proxy.sh"]
+
+CMD ["sh","-c", "/usr/bin/start_vpn.sh && /usr/bin/set_proxy.sh"]
+
+
