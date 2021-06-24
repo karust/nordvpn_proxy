@@ -1,0 +1,33 @@
+version: "3"
+
+
+services:
+
+  build_image:
+    build:
+      dockerfile: Dockerfile
+      context: .
+    image: nordvpn_proxy:0.1
+
+  vpn:
+    container_name: nordvpn_proxy
+    depends_on:
+      - build_image
+    image: nordvpn_proxy:0.1
+    cap_add:
+      - NET_ADMIN              
+    env_file:
+      - ./template_config.env 
+    networks:
+      proxy_net:
+        ipv4_address: 181.1.1.2
+    restart: always
+
+networks:
+  proxy_net:
+    driver: bridge
+    ipam:
+     config:
+       - subnet: 181.1.1.0/24
+    driver_opts:
+      com.docker.network.bridge.name: vpn_proxy_net
