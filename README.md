@@ -177,6 +177,7 @@ services:
    - Provide a [city] argument to connect to a specific city. For example: 'Hungary Budapest' , Use `docker run --rm ghcr.io/bubuntux/nordvpn cities [country]` to get the list of cities. 
    - Provide a [group] argument to connect to a specific servers group. For example: P2P , Use `docker run --rm ghcr.io/bubuntux/nordvpn n_groups` to get the full list.
    - --group value  Specify a server group to connect to. For example: '--group p2p us'
+* `POST_CONNECT` - Command to execute after successful connection.
 * `CYBER_SEC`  - Enable or Disable. When enabled, the CyberSec feature will automatically block suspicious websites so that no malware or other cyber threats can infect your device. Additionally, no flashy ads will come into your sight. More information on how it works: https://nordvpn.com/features/cybersec/.
 * `DNS` -   Can set up to 3 DNS servers. For example 1.1.1.1,8.8.8.8 or Disable, Setting DNS disables CyberSec.
 * `FIREWALL`  - Enable or Disable.
@@ -191,10 +192,15 @@ services:
 * `NETWORK6` - CIDR IPv6 networks (IE fe00:d34d:b33f::/64), add a route to allows replies once the VPN is up.
 * `PORTS`  - Semicolon delimited list of ports to whitelist for both UDP and TCP. For example '- PORTS=9091;9095'
 * `PORT_RANGE`  - Port range to whitelist for both UDP and TCP. For example '- PORT_RANGE=9091 9095'
-* `RECONNECT`  - Time in seconds to check connection and reconnect if need it. (300 by default) For example '- RECONNECT=600'
+* `CHECK_CONNECTION_INTERVAL`  - Time in seconds to check connection and reconnect if need it. (300 by default) For example '- CHECK_CONNECTION_INTERVAL=600'
+* `CHECK_CONNECTION_URL`  - URL for checking Internet connection. (www.google.com by default) For example '- CHECK_CONNECTION_URL=www.custom.domain'
 * `TZ`  - Specify a timezone to use. For example  '- TZ=Europe/London'
-* `DEBUG`    - Trace or Info. Set to 'trace' for troubleshooting (User and Pass can be logged).
+* `DEBUG`  - info, trace or trace+. Set to 'trace' for troubleshooting, 'trace+' will log your User and Pass.
 
 # Issues
 
 If you have any problems with or questions about this image, please contact me through a [GitHub issue](https://github.com/bubuntux/nordvpn/issues).
+
+# Disclaimer 
+This project is independently developed for personal use, there is no affiliation with NordVpn or Nord Security companies,
+Nord Security companies are not responsible for and have no control over the nature, content and availability of this project.

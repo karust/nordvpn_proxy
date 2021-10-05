@@ -10,14 +10,14 @@ iptables -X
 ip6tables -F 2>/dev/null
 ip6tables -X 2>/dev/null
 
-[[ "${DEBUG,,}" = "trace"  ]] && set -x
+[[ "${DEBUG,,}" == trace* ]] && set -x
 
 if [ "$(cat /etc/timezone)" != "${TZ}" ]; then
   if [ -d "/usr/share/zoneinfo/${TZ}" ] || [ ! -e "/usr/share/zoneinfo/${TZ}" ] || [ -z "${TZ}" ]; then
     TZ="Etc/UTC"
   fi
   ln -fs "/usr/share/zoneinfo/${TZ}" /etc/localtime
-  dpkg-reconfigure -f noninteractive tzdata 2> /dev/null
+  dpkg-reconfigure -f noninteractive tzdata 2>/dev/null
 fi
 
 echo "[$(date -Iseconds)] Firewall is up, everything has to go through the vpn"
@@ -147,29 +147,37 @@ restart_daemon() {
 }
 restart_daemon
 
-[[ -z "${PASS}" ]] && [[ -f "${PASSFILE}" ]] && PASS="$(head -n 1 "${PASSFILE}")"
+echo "[$(date -Iseconds)] Pre-logging settings $(nordvpn -version)"
+[[ -n ${DNS} ]] && nordvpn set dns ${DNS//[;,]/ }
+[[ -n ${CYBER_SEC} ]] && nordvpn set cybersec ${CYBER_SEC}
+[[ -n ${OBFUSCATE} ]] && nordvpn set obfuscate ${OBFUSCATE} && sleep 3
 
+if [[ "${DEBUG,,}" == trace+* ]]; then
+  echo "[$(date -Iseconds)] ############# WARNING ############### make sure to remove user/pass before sharing this log"
+else
+  set +x
+  [[ "${DEBUG,,}" == trace* ]] && echo "[$(date -Iseconds)] Hiding user/password from the logs, set DEBUG=trace+ if you want to show them in the logs"
+fi
+[[ -z "${PASS}" ]] && [[ -f "${PASSFILE}" ]] && PASS="$(head -n 1 "${PASSFILE}")"
 echo "[$(date -Iseconds)] Logging in"
-nordvpn logout > /dev/null
+nordvpn logout >/dev/null
 nordvpn login --username "${USER}" --password "${PASS}" || {
   echo "[$(date -Iseconds)] Invalid Username or password."
   exit 1
 }
+[[ "${DEBUG,,}" == trace* ]] && set -x
 
-echo "[$(date -Iseconds)] Setting up $(nordvpn -version)"
-[[ -n ${CYBER_SEC} ]] && nordvpn set cybersec ${CYBER_SEC}
-[[ -n ${DNS} ]] && nordvpn set dns ${DNS//[;,]/ }
+echo "[$(date -Iseconds)] Post-logging settings $(nordvpn -version)"
 [[ -n ${FIREWALL} ]] && nordvpn set firewall ${FIREWALL}
 [[ -n ${KILLSWITCH} ]] && nordvpn set killswitch ${KILLSWITCH}
-[[ -n ${OBFUSCATE} ]] && nordvpn set obfuscate ${OBFUSCATE}
 [[ -n ${PROTOCOL} ]] && nordvpn set protocol ${PROTOCOL}
 [[ -n ${TECHNOLOGY} ]] && nordvpn set technology ${TECHNOLOGY}
 
-if [[ -n ${docker_network} ]];then
+if [[ -n ${docker_network} ]]; then
   nordvpn whitelist add subnet ${docker_network}
   [[ -n ${NETWORK} ]] && for net in ${NETWORK//[;,]/ }; do nordvpn whitelist add subnet "${net}"; done
 fi
-if [[ -n ${docker6_network} ]];then
+if [[ -n ${docker6_network} ]]; then
   nordvpn set ipv6 on
   nordvpn whitelist add subnet ${docker6_network}
   [[ -n ${NETWORK6} ]] && for net in ${NETWORK6//[;,]/ }; do nordvpn whitelist add subnet "${net}"; done
@@ -180,17 +188,20 @@ fi
 
 connect() {
   echo "[$(date -Iseconds)] Connecting..."
-  attempt_counter=0
-  max_attempts=15
+  current_sleep=1
   until nordvpn connect ${CONNECT}; do
-    if [ ${attempt_counter} -eq ${max_attempts} ]; then
-      tail -n 200 /var/log/nordvpn/daemon.log
+    if [ ${current_sleep} -gt 4096 ]; then
       echo "[$(date -Iseconds)] Unable to connect."
+      tail -n 200 /var/log/nordvpn/daemon.log
       exit 1
     fi
-    attempt_counter=$((attempt_counter + 1))
-    sleep 5
+    echo "[$(date -Iseconds)] Unable to connect retrying in ${current_sleep} seconds."
+    sleep ${current_sleep}
+    current_sleep=$((current_sleep * 2))
   done
+  if [[ ! -z "${POST_CONNECT}" ]]; then
+    eval ${POST_CONNECT}
+  fi
 }
 connect
 [[ -n ${DEBUG} ]] && tail -n 1 -f /var/log/nordvpn/daemon.log &
@@ -198,15 +209,17 @@ connect
 cleanup() {
   nordvpn status
   nordvpn disconnect
+  nordvpn logout
   service nordvpn stop
   trap - SIGTERM SIGINT EXIT # https://bash.cyberciti.biz/guide/How_to_clear_trap
   exit 0
 }
 trap cleanup SIGTERM SIGINT EXIT # https://www.ctl.io/developers/blog/post/gracefully-stopping-docker-containers/
 
+[[ -n ${RECONNECT} && -z ${CHECK_CONNECTION_INTERVAL} ]] && CHECK_CONNECTION_INTERVAL=${RECONNECT}
 while true; do
-  sleep "${RECONNECT:-300}"
-  if [ "$(curl -m 30 -s https://api.nordvpn.com/v1/helpers/ips/insights | jq -r '.["protected"]')" != "true" ]; then
+  sleep "${CHECK_CONNECTION_INTERVAL:-300}"
+  if [[ ! $(curl -Is -m 30 -o /dev/null -w "%{http_code}" "${CHECK_CONNECTION_URL:-www.google.com}") =~ ^[23] ]]; then
     echo "[$(date -Iseconds)] Unstable connection detected!"
     nordvpn status
     restart_daemon
